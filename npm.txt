@@ -1,0 +1,5 @@
+npm install axios react-router-dom lucide-react
+
+Cài đặt Tailwind CSS (để viết giao diện nhanh và đẹp)
+npm install tailwindcss@latest postcss@latest autoprefixer@latest -D
+npx tailwindcss@3.4.1 init -p
