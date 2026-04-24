@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import userApi from '../../api/userApi';
 import Navbar from '../../components/Navbar';
 
 
 
-interface User{
+interface User {
   id: number,
   firstName: string,
   lastName: string,
@@ -20,6 +20,40 @@ const UserList = () => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [editingId, setEditingId] = useState<null | number>(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  useEffect(() => {
+    // Tạo một bộ hẹn giờ
+    const delayDebounceFn = setTimeout(() => {
+      if (searchTerm.trim()) {
+        // Gọi hàm search khi đủ 300ms
+        handleSearch(searchTerm);
+      } else {
+        // Nếu ô search trống thì quay về danh sách đầy đủ
+        fetchUsers();
+      }
+    }, 300);
+
+    // Hàm cleanup: Hủy bộ hẹn giờ cũ nếu searchTerm thay đổi liên tục
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  // Hàm handleSearch chỉnh sửa lại một chút
+  const handleSearch = async (email: string) => {
+    try {
+      setLoading(true);
+      const res = await userApi.getAll(email);
+      const result = res.data.data;
+      // Đảm bảo dữ liệu luôn là mảng để .map() hoạt động
+      setUsers(Array.isArray(result) ? result : result ? [result] : []);
+      setError('');
+    } catch (err: any) {
+      setUsers([]);
+      setError('❌ Không tìm thấy người dùng!');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // State cho form thêm/sửa
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', password: '' });
@@ -62,7 +96,7 @@ const UserList = () => {
    * - Reset form sau khi thành công
    * - Load lại danh sách
    */
-  const handleAddUser = async (e:any) => {
+  const handleAddUser = async (e: any) => {
     e.preventDefault();
 
     // Kiểm tra dữ liệu hợp lệ
@@ -108,7 +142,7 @@ const UserList = () => {
    * - Gọi userApi.delete(id) nếu user xác nhận
    * - Load lại danh sách
    */
-  const handleDelete = async (id:number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm("⚠️ Bạn có chắc chắn muốn xóa user này không?")) {
       try {
         setError('');
@@ -158,6 +192,12 @@ const UserList = () => {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    if (!loading) {
+      focusSearch()
+    }
+  }, [loading])
+
   // hàm xử lý cập nhật trạng thái user
   const handleToggleStatus = async (user: any) => {
     try {
@@ -174,19 +214,17 @@ const UserList = () => {
     }
   };
 
-  // ===== RENDER LOADING STATE =====
-  if (loading) {
-    return (
-      <div className="p-10 text-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        <p className="mt-4 text-lg text-gray-600">⏳ Đang tải dữ liệu...</p>
-      </div>
-    );
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const focusSearch = () => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
   }
+
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <Navbar/>
+      <Navbar />
       {/* ===== HEADER =====*/}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">👥 Quản lý người dùng</h1>
@@ -197,6 +235,26 @@ const UserList = () => {
           🚪 Đăng xuất
         </button>
       </div>
+
+      <div className="mb-6 relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <span className="text-gray-400">🔍</span>
+        </div>
+        <input
+          ref={searchInputRef}
+          type="text"
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm transition duration-150 ease-in-out"
+          placeholder="Nhập email để tìm kiếm tự động (sau 300ms)..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        {loading && (
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+          </div>
+        )}
+      </div>
+
 
       {/* ===== THÔNG BÁO LỖI =====*/}
       {error && (
@@ -249,7 +307,7 @@ const UserList = () => {
           />
 
           <input
-            type=""
+            type="password"
             placeholder="Nhập password"
             className="border border-gray-300 p-3 flex-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={newUser.password}
@@ -293,28 +351,22 @@ const UserList = () => {
             </tr>
           </thead>
           <tbody>
-            {users && users.length > 0 ? (
+            {loading ? (<div className="p-10 text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              <p className="mt-4 text-lg text-gray-600">⏳ Đang tải dữ liệu...</p>
+            </div>) :  users && users.length > 0 ? (
               users.map((user) => (
                 <tr key={user.id} className="border-b hover:bg-blue-50 transition">
                   <td className="p-4 text-gray-600 font-semibold">#{user.id}</td>
                   <td className="p-4 font-medium text-gray-800">{user.firstName}</td>
                   <td className="p-4 font-medium text-gray-800">{user.lastName}</td>
                   <td className="p-4 text-gray-600">{user.email}</td>
-                  {/* <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${user.isActive
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                      }`}>
-                      {user.isActive ? 'Hoạt động' : 'Bị khóa'}
-                    </span>
-                  </td> */}
-
                   <td className="p-4">
                     <button
                       onClick={() => handleToggleStatus(user)}
                       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${user.isActive
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-red-100 text-red-700 hover:bg-red-200'
                         }`}
                     >
                       {/* Vòng tròn nhỏ biểu thị trạng thái */}
@@ -340,7 +392,7 @@ const UserList = () => {
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-gray-500">
+                <td colSpan={6} className="p-8 text-center text-gray-500">
                   📭 Không có dữ liệu user
                 </td>
               </tr>
