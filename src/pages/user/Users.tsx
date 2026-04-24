@@ -23,11 +23,13 @@ const UserList = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   useEffect(() => {
+    // khởi tạo controller
+    const controller = new AbortController();
     // Tạo một bộ hẹn giờ
     const delayDebounceFn = setTimeout(() => {
       if (searchTerm.trim()) {
         // Gọi hàm search khi đủ 300ms
-        handleSearch(searchTerm);
+        handleSearch(searchTerm, controller.signal); // truyền thêm signal vào hàm search
       } else {
         // Nếu ô search trống thì quay về danh sách đầy đủ
         fetchUsers();
@@ -35,19 +37,28 @@ const UserList = () => {
     }, 300);
 
     // Hàm cleanup: Hủy bộ hẹn giờ cũ nếu searchTerm thay đổi liên tục
-    return () => clearTimeout(delayDebounceFn);
+    return () => {
+      clearTimeout(delayDebounceFn);
+      controller.abort(); // hủy request api nếu người dùng tiếp tục gõ trước khi api gọi
+    }
   }, [searchTerm]);
 
+
   // Hàm handleSearch chỉnh sửa lại một chút
-  const handleSearch = async (email: string) => {
+  const handleSearch = async (email: string, signal: AbortSignal) => {
     try {
       setLoading(true);
-      const res = await userApi.getAll(email);
+      const res = await userApi.getAll(email, { signal });
       const result = res.data.data;
       // Đảm bảo dữ liệu luôn là mảng để .map() hoạt động
       setUsers(Array.isArray(result) ? result : result ? [result] : []);
       setError('');
     } catch (err: any) {
+
+      if (err.name === 'Canceled Error' || err.name === 'AbortError') {
+        console.log("request cũ đã bị hủy")
+        return;
+      }
       setUsers([]);
       setError('❌ Không tìm thấy người dùng!');
     } finally {
@@ -354,7 +365,7 @@ const UserList = () => {
             {loading ? (<div className="p-10 text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
               <p className="mt-4 text-lg text-gray-600">⏳ Đang tải dữ liệu...</p>
-            </div>) :  users && users.length > 0 ? (
+            </div>) : users && users.length > 0 ? (
               users.map((user) => (
                 <tr key={user.id} className="border-b hover:bg-blue-50 transition">
                   <td className="p-4 text-gray-600 font-semibold">#{user.id}</td>

@@ -1,8 +1,9 @@
 import axiosClient from "./axiosClient";
 
 const userApi = { 
-  getAll: (email?: string) => axiosClient.get('/users',{
-    params: {email}
+  getAll: (email?: string, config?: any) => axiosClient.get('/users',{
+    params: {email},
+    ...config
   }),
   create: (data:any) => axiosClient.post('/users', data),
   update: (id:number, data:any) => axiosClient.put(`/users/${id}`, data),
